@@ -24,15 +24,31 @@
   .shop-item{display:flex;justify-content:space-between;align-items:center;padding:8px;border-radius:6px;background:#0f1013;margin-bottom:6px}
   .muted{color:var(--muted)}
   .spells{display:flex;flex-direction:column;gap:6px;margin-top:8px}
+  .top-controls{display:flex;gap:8px;align-items:center;margin-bottom:8px}
+  input.name-input{background:#0f0f11;border:1px solid #222;padding:6px;border-radius:6px;color:#fff}
+  .tiny{font-size:12px;padding:6px;border-radius:6px}
+  /* Estilo para mostrar poções nos botões */
+  .potion-btn-wrap{position:relative; display:inline-block;}
+  .potion-count{position:absolute; top:-8px; right:-8px; background:var(--accent); color:#000; font-size:10px; padding:2px 5px; border-radius:50%; line-height:1}
 </style>
 </head>
 <body>
 <div class="wrap">
-  <!-- LEFT: Player & Attributes & Shop -->
   <div class="card">
-    <h1>Idle SoulsLike - Hero</h1>
+    <div class="top-controls">
+      <div style="flex:1">
+        <h1>Idle SoulsLike - Hero</h1>
+        <small class="muted"> (Idle RPG)</small>
+      </div>
+      <div style="text-align:right">
+        <input id="nameInput" class="name-input" placeholder="Wanderer" />
+        <button class="tiny" onclick="setNameFromInput()">Set Name</button>
+        <button class="tiny" onclick="resetSave()">Reset Save</button>
+      </div>
+    </div>
+
     <div class="stats">
-      <p><strong id="hero-name">Wanderer</strong> <small class="muted"> (Idle RPG)</small></p>
+      <p><strong id="hero-name">Wanderer</strong></p>
       <p>Level: <strong id="level">1</strong> / 200 &nbsp; • &nbsp; Unspent Points: <strong id="unspent">0</strong></p>
       <p>XP: <span id="xp">0</span> / <span id="xpNeeded">50</span></p>
       <div class="bar" title="XP bar"><i id="xpbar" style="width:0%"></i></div>
@@ -44,6 +60,7 @@
       <div class="bar" title="MP"><i id="mpbar" style="width:100%"></i></div>
 
       <p>Attack: <strong id="atk">10</strong> &nbsp; • &nbsp; Defense: <strong id="def">5</strong></p>
+      <p>Attack Interval: <strong id="atkInterval">2.0</strong>s</p>
       <p>Gold: <strong id="gold">0</strong> &nbsp; • &nbsp; Area: <strong id="area">1</strong> / 300</p>
       <p class="small">Monsters defeated in area: <span id="areaKills">0</span> / 10</p>
     </div>
@@ -60,18 +77,16 @@
     </div>
 
     <div style="margin-top:10px">
-      <button class="shop" onclick="resetAllocation()">Reset Alloc (respec)</button>
+      <button class="shop" onclick="resetAllocation()">Reset Alloc (<span id="respecCost">5000</span>g)</button>
     </div>
 
     <hr style="border:none;height:1px;background:#0e0e11;margin:12px 0">
 
     <h3 style="margin:6px 0">Shop</h3>
     <div id="shop" style="max-height:320px;overflow:auto">
-      <!-- shop items injected here -->
-    </div>
+      </div>
   </div>
 
-  <!-- RIGHT: Area, Enemy, Controls, Log -->
   <div class="card">
     <h1>Area & Combat</h1>
     <div class="area">
@@ -83,8 +98,14 @@
       <p class="small">Attack Interval: <span id="enemyInterval">2.5</span>s</p>
 
       <div class="controls">
-        <button onclick="usePotion('hp')">Use HP Potion</button>
-        <button onclick="usePotion('mp')">Use MP Potion</button>
+        <div class="potion-btn-wrap">
+          <button onclick="usePotion('hp')">Use HP Potion</button>
+          <span class="potion-count" id="hpPotCount">0</span>
+        </div>
+        <div class="potion-btn-wrap">
+          <button onclick="usePotion('mp')">Use MP Potion</button>
+          <span class="potion-count" id="mpPotCount">0</span>
+        </div>
         <button onclick="manualAttack()">Manual Attack</button>
         <button onclick="openShopPrompt()">Open Shop</button>
       </div>
@@ -104,25 +125,30 @@
 
 <script>
 /* =========================
-   GAME CONFIG / BALANCE
-   ========================= */
+    GAME CONFIG / BALANCE
+    ========================= */
+const SAVE_KEY = 'idleSoulsSaveV1';
 const MAX_LEVEL = 200;
 const AREAS_TOTAL = 300;
-const MONSTERS_PER_AREA = 10; // then boss
+const MONSTERS_PER_AREA = 10;
 const ATTR_PER_LEVEL = 3;
-const BASE_XP_REQ = 50; // xp needed for level1->2
-const BASE_GOLD = 5; // base gold per monster before area multiplier
+const BASE_XP_REQ = 50;
+const BASE_GOLD = 5;
+const AUTOSAVE_INTERVAL_MS = 5000;
+const HP_MP_RECOVERY_PCT = 0.20; // 20%
+const INITIAL_RESPEC_COST = 5000; // Custo inicial de respec
+
 const SHOP_BASE = {
-  hpPot: {name:"HP Potion", basePrice:10, action:"hpPotion"},
-  mpPot: {name:"MP Potion", basePrice:8, action:"mpPotion"},
-  weapon: {name:"Weapon Upgrade (+atk)", basePrice:100, action:"weaponUp"},
-  armor: {name:"Armor Upgrade (+def)", basePrice:100, action:"armorUp"},
-  spell: {name:"Learn Fireball", basePrice:150, action:"learnSpell"}
+  hpPot: {name:"HP Potion", basePrice:100, action:"hpPotion"}, // Preço 100g
+  mpPot: {name:"MP Potion", basePrice:100, action:"mpPotion"}, // Preço 100g
+  weapon: {name:"Weapon Upgrade (+atk)", basePrice:1000, action:"weaponUp"}, // Preço 1000g
+  armor: {name:"Armor Upgrade (+def)", basePrice:1000, action:"armorUp"}, // Preço 1000g
+  spell: {name:"Learn Fireball", basePrice:10000, action:"learnSpell"} // Preço 10000g, compra única
 };
 
 /* =========================
-   HERO STATE
-   ========================= */
+    HERO STATE
+    ========================= */
 let hero = {
   name:"Wanderer",
   level:1,
@@ -138,67 +164,71 @@ let hero = {
   defBonus:0,
   potions:{hp:2, mp:1},
   spells:[], // object {id,name,mpCost,power}
-  purchases: { hpPot:0, mpPot:0, weapon:0, armor:0, spell:0 }
+  purchases: { hpPot:0, mpPot:0, weapon:0, armor:0, spell:0 },
+  respecCost: INITIAL_RESPEC_COST // Custo do respec
 };
 
 function recalcDerived() {
-  // Derived stats from attributes
   const A = hero.attr;
   hero.maxHp = hero.baseHp + (A.vit * 10) + (hero.level * 2) + (hero.defBonus * 2);
   hero.maxMp = hero.baseMp + (A.int * 6) + Math.floor(hero.level/2);
   hero.atk = hero.baseAtk + Math.floor(A.str * 2) + hero.atkBonus;
-  hero.def = hero.baseDef + Math.floor(A.vit * 0.8) + hero.defBonus;
-  hero.attackInterval = Math.max(0.25, 2.0 - (A.agi * 0.012) - (hero.level * 0.002)); // seconds
+  
+  // Alteração: Defesa com 0.1 por ponto de Vit
+  hero.def = hero.baseDef + (A.vit * 0.1) + hero.defBonus;
+  
+  // Alteração: Attack Interval ajustado para Agility (1 Agi=3.5s, 300 Agi=0.5s)
+  // Fórmula de ajuste: (3.5 - 0.5) / (300 - 1) = 3 / 299 ≈ 0.01003
+  const agiReduction = (A.agi - 1) * 0.01003;
+  hero.attackInterval = Math.max(0.5, 3.5 - agiReduction); 
+  
   hero.hitChance = Math.min(98, 70 + A.dex * 1.2); // %
-  // clamp hp/mp to max when recalculated only on level up or respec
+  
   if (!hero.hp || hero.hp > hero.maxHp) hero.hp = hero.maxHp;
   if (!hero.mp || hero.mp > hero.maxMp) hero.mp = hero.maxMp;
 }
 
 /* =========================
-   AREA / ENEMY STATE
-   ========================= */
+    AREA / ENEMY STATE
+    ========================= */
 let area = 1;
-let areaKills = 0; // monsters killed in this area (0..MONSTERS_PER_AREA-1)
+let areaKills = 0; 
 let isBossFight = false;
-let enemy = {}; // current enemy object
+let enemy = {}; 
 
 /* =========================
-   HELPER: difficulty curve
-   ========================= */
-// areaMultiplier: gold multiplier 1x -> 100x across areas
+    HELPER: difficulty curve & spawn
+    ========================= */
 function areaGoldMultiplier(a){
   if (a <=1) return 1;
-  return 1 + (a-1) * (99 / (AREAS_TOTAL - 1)); // linear from 1 to 100
+  return 1 + (a-1) * (99 / (AREAS_TOTAL - 1)); 
 }
 
-// enemy scaling: based on area number and hero level
 function generateEnemy(isBoss=false){
   const a = area;
-  // base stats grow with area and hero level
-  // difficulty curve: up to area that corresponds to level 150 it's medium, after it skyrockets
-  // Map hero.level to a difficulty factor
   const lvl = hero.level;
   let difficultyFactor;
   if (lvl <= 150) {
-    difficultyFactor = 1 + (lvl-1) * 0.018 + (a-1)*0.006; // moderate growth
+    difficultyFactor = 1 + (lvl-1) * 0.018 + (a-1)*0.006;
   } else {
-    // steeper
     difficultyFactor = 1 + (150-1) * 0.018 + (lvl-150) * 0.07 + (a-1)*0.01;
   }
-  // base enemy stats
   const baseHp = Math.floor(20 + a * 6 + lvl * 4) * difficultyFactor;
   const baseAtk = Math.floor(3 + a * 1.5 + lvl * 0.7) * difficultyFactor;
-  const hit = Math.max(40, 65 - Math.floor(hero.attr.dex/2) + Math.floor(a*0.05));
-  const interval = Math.max(0.6, 2.5 - (a*0.002) - (lvl*0.01)); // enemy attack interval
-  // boss scaling larger
+  
+  // Alteração: Hit Chance do inimigo diminuída pela defesa do herói
+  const defReduction = hero.def * 0.35; // Fator de redução
+  const baseHit = 65 + Math.floor(a*0.05); // Base do inimigo
+  const hit = Math.max(20, Math.floor(baseHit - defReduction));
+
+  const interval = Math.max(0.6, 2.5 - (a*0.002) - (lvl*0.01));
   if (isBoss) {
     return {
       name:`Area ${a} Boss`,
       hp: Math.floor(baseHp * 5.5),
       maxHp: Math.floor(baseHp * 5.5),
       atk: Math.max(5, Math.floor(baseAtk * 1.6)),
-      hit: Math.min(98, Math.floor(hit * 1.02)),
+      hit: Math.min(98, Math.floor(hit * 1.05)), // Boss tem hit ligeiramente maior
       interval: Math.max(0.8, interval * 0.9),
       goldReward: Math.floor((BASE_GOLD * areaGoldMultiplier(a)) * 8)
     };
@@ -208,7 +238,7 @@ function generateEnemy(isBoss=false){
       hp: Math.floor(baseHp),
       maxHp: Math.floor(baseHp),
       atk: Math.max(1, Math.floor(baseAtk)),
-      hit: Math.max(30, Math.floor(hit)),
+      hit: Math.max(20, Math.floor(hit)), // Hit chance ajustada
       interval: Math.max(0.6, interval),
       goldReward: Math.floor(BASE_GOLD * areaGoldMultiplier(a) * (1 + Math.random()*0.4))
     };
@@ -216,25 +246,22 @@ function generateEnemy(isBoss=false){
 }
 
 /* =========================
-   XP and Leveling
-   ========================= */
+    XP and Leveling
+    ========================= */
 function xpNeededFor(level){
-  // progressive XP needed: base * level^1.12 (gentle curve). but cap huge.
   return Math.floor(BASE_XP_REQ * Math.pow(level, 1.12));
 }
 
 function gainXP(amount){
   hero.xp += amount;
   log(`Gained ${amount} XP.`);
-  // level up while possible
   while (hero.level < MAX_LEVEL && hero.xp >= xpNeededFor(hero.level)){
     hero.xp -= xpNeededFor(hero.level);
     hero.level++;
     hero.unspent += ATTR_PER_LEVEL;
-    hero.baseHp += 8; // small base HP growth each level
+    hero.baseHp += 8;
     hero.baseMp += 3;
     log(`Leveled up! You are now level ${hero.level}. +${ATTR_PER_LEVEL} attribute points.`);
-    // on reaching cap only keep xp up to cap
     if (hero.level >= MAX_LEVEL){
       hero.xp = Math.min(hero.xp, xpNeededFor(hero.level)-1);
       break;
@@ -245,22 +272,19 @@ function gainXP(amount){
 }
 
 /* =========================
-   COMBAT LOGIC
-   ========================= */
+    COMBAT LOGIC
+    ========================= */
 let autoAttackTimer = null;
 let enemyAttackTimer = null;
 
 function startCombat(){
-  stopCombat(); // ensure no double timers
-  // start enemy attack loop
+  stopCombat();
   enemyAttackTimer = setInterval(() => {
     if (!enemy || enemy.hp <= 0) return;
-    // hit chance
     if (Math.random()*100 <= enemy.hit){
-      // calculate damage considering hero.def
       const raw = enemy.atk;
       const mitig = Math.floor(hero.def * 0.7);
-      const dmg = Math.max(1, raw - mitig);
+      const dmg = Math.max(1, Math.floor(raw - mitig));
       hero.hp -= dmg;
       log(`Enemy hits you for ${dmg} damage.`);
       if (hero.hp <= 0){
@@ -274,7 +298,6 @@ function startCombat(){
     }
   }, Math.max(250, Math.floor(enemy.interval * 1000)));
 
-  // start hero auto-attack loop
   autoAttackTimer = setInterval(() => {
     if (!enemy || enemy.hp <= 0) return;
     heroAutoAttack();
@@ -288,9 +311,7 @@ function stopCombat(){
 
 function heroAutoAttack(){
   if (hero.hp <= 0 || !enemy) return;
-  // hit chance
   if (Math.random()*100 <= hero.hitChance){
-    // critical chance based on dex
     const crit = Math.random() < Math.min(0.25, hero.attr.dex * 0.0025);
     const baseDmg = hero.atk + Math.floor(hero.attr.str * 1.5);
     const dmg = Math.max(1, Math.floor(baseDmg * (crit?1.8:1)));
@@ -311,19 +332,17 @@ function manualAttack(){
 }
 
 /* =========================
-   ON ENEMY / BOSS DEFEAT
-   ========================= */
+    ON ENEMY / BOSS DEFEAT
+    ========================= */
 function onEnemyDefeated(){
   stopCombat();
   const gold = Math.max(0, Math.floor(enemy.goldReward));
   hero.gold += gold;
   log(`Defeated ${enemy.name}. Gained ${gold} gold.`);
-  // XP reward: scaled from enemy
   const xpGain = Math.max(5, Math.floor((enemy.maxHp/10) * (isBossFight ? 2.5 : 1)));
   gainXP(xpGain);
 
   if (isBossFight){
-    // beat boss -> area advance
     log(`Boss defeated! You advance from Area ${area} to Area ${Math.min(AREAS_TOTAL, area+1)}.`);
     area = Math.min(AREAS_TOTAL, area+1);
     areaKills = 0;
@@ -334,13 +353,11 @@ function onEnemyDefeated(){
   } else {
     areaKills++;
     if (areaKills >= MONSTERS_PER_AREA){
-      // trigger boss
       isBossFight = true;
       spawnEnemy(true);
       updateUI();
       startCombat();
     } else {
-      // spawn next regular enemy
       spawnEnemy(false);
       startCombat();
     }
@@ -348,14 +365,12 @@ function onEnemyDefeated(){
 }
 
 /* =========================
-   HERO DEATH: restart area
-   ========================= */
+    HERO DEATH: restart area
+    ========================= */
 function onHeroDeath(){
   stopCombat();
-  // penalty could be gold loss or XP loss in future; for now restart area state
   areaKills = 0;
   isBossFight = false;
-  // restore hero to full HP/MP to retry area
   recalcDerived();
   hero.hp = hero.maxHp;
   hero.mp = hero.maxMp;
@@ -365,8 +380,8 @@ function onHeroDeath(){
 }
 
 /* =========================
-   SPAWN ENEMY
-   ========================= */
+    SPAWN ENEMY
+    ========================= */
 function spawnEnemy(boss=false){
   enemy = generateEnemy(boss);
   isBossFight = !!boss;
@@ -374,15 +389,30 @@ function spawnEnemy(boss=false){
 }
 
 /* =========================
-   SHOP / ITEMS
-   ========================= */
+    SHOP / ITEMS
+    ========================= */
 function shopPrice(key){
   const base = SHOP_BASE[key].basePrice;
   const count = hero.purchases[key] || 0;
-  return Math.floor(base * Math.pow(1.10, count)); // +10% per purchase
+  if (key === 'weapon' || key === 'armor') {
+    // Aumento de preço para armas e armaduras
+    return Math.floor(base * Math.pow(1.18, count));
+  } else if (key === 'hpPot' || key === 'mpPot') {
+    // Aumento de preço para poções
+    return Math.floor(base * Math.pow(1.10, count));
+  } else if (key === 'spell') {
+      return base; // Preço fixo para Fireball
+  }
+  return base;
 }
 
 function buyItem(key){
+  // Lógica especial para Fireball: só pode comprar uma vez
+  if (key === 'spell' && hero.spells.length > 0) {
+      log("You already know Fireball.");
+      return;
+  }
+
   const price = shopPrice(key);
   if (hero.gold < price){
     log("Not enough gold.");
@@ -390,6 +420,7 @@ function buyItem(key){
   }
   hero.gold -= price;
   hero.purchases[key] = (hero.purchases[key]||0) + 1;
+  
   if (key === 'hpPot'){
     hero.potions.hp += 1;
     log("Bought HP Potion.");
@@ -403,8 +434,7 @@ function buyItem(key){
     hero.defBonus += 2 + Math.floor(hero.purchases.armor * 1.1);
     log("Armor upgraded. Defense increased.");
   } else if (key === 'spell'){
-    // simple Fireball learning
-    hero.spells.push({id:Date.now(), name:"Fireball", mpCost:8, power: Math.floor(30 + area * 1.5)});
+    hero.spells.push({id:Date.now(), name:"Fireball", mpCost:8, power: Math.floor(30 + area * 1.5 + hero.level * 0.8)});
     log("You learned Fireball.");
   }
   recalcDerived();
@@ -412,20 +442,22 @@ function buyItem(key){
 }
 
 /* =========================
-   POTIONS / SPELLS USE
-   ========================= */
+    POTIONS / SPELLS USE
+    ========================= */
 function usePotion(type){
   if (type==='hp'){
     if (hero.potions.hp <= 0){ log("No HP potions."); return; }
     hero.potions.hp--;
-    const heal = Math.floor(hero.maxHp * 0.45);
+    // Alteração: Recupera 20% do HP máximo
+    const heal = Math.floor(hero.maxHp * HP_MP_RECOVERY_PCT);
     hero.hp = Math.min(hero.maxHp, hero.hp + heal);
     log(`Used HP potion. Restored ${heal} HP.`);
     updateUI();
   } else {
     if (hero.potions.mp <= 0){ log("No MP potions."); return; }
     hero.potions.mp--;
-    const regen = Math.floor(hero.maxMp * 0.6);
+    // Alteração: Recupera 20% do MP máximo
+    const regen = Math.floor(hero.maxMp * HP_MP_RECOVERY_PCT);
     hero.mp = Math.min(hero.maxMp, hero.mp + regen);
     log(`Used MP potion. Restored ${regen} MP.`);
     updateUI();
@@ -438,7 +470,6 @@ function castSpell(spellIndex){
   if (hero.mp < spell.mpCost){ log("Not enough MP."); return; }
   if (!enemy || enemy.hp <= 0) { log("No target."); return; }
   hero.mp -= spell.mpCost;
-  // spell damage scaled by intelligence
   const power = Math.floor(spell.power + hero.attr.int * 2 + hero.level * 0.6);
   enemy.hp -= power;
   log(`Cast ${spell.name} for ${power} damage.`);
@@ -447,8 +478,8 @@ function castSpell(spellIndex){
 }
 
 /* =========================
-   ATTR ALLOCATION
-   ========================= */
+    ATTR ALLOCATION
+    ========================= */
 function alloc(which){
   if (hero.unspent <= 0){ log("No attribute points."); return; }
   hero.attr[which] += 1;
@@ -457,64 +488,79 @@ function alloc(which){
   updateUI();
   log(`+1 ${which.toUpperCase()}`);
 }
+
 function resetAllocation(){
-  // refunds all allocated points to point 1 baseline (simple respec)
-  const totalAllocated = (hero.attr.str + hero.attr.agi + hero.attr.vit + hero.attr.int + hero.attr.dex) - 5;
-  const baseline = 1;
-  // compute spent points from levels
+  const cost = hero.respecCost;
+  if (hero.gold < cost) {
+    log(`Not enough gold to respec. Need ${cost}g.`);
+    return;
+  }
+
+  if (!confirm(`Reset attributes for ${cost} gold? The next cost will be ${cost * 2} gold.`)) {
+    return;
+  }
+  
+  hero.gold -= cost;
+  // Alteração: Dobra o custo do respec
+  hero.respecCost = cost * 2; 
+
   const fromLevels = (hero.level - 1) * ATTR_PER_LEVEL;
   hero.attr = {str:1, agi:1, vit:1, int:1, dex:1};
   hero.unspent = fromLevels;
   recalcDerived();
   updateUI();
-  log("Attributes reset. All points refunded to unspent.");
+  log(`Attributes reset. All points refunded. Next respec cost: ${hero.respecCost}g.`);
 }
 
 /* =========================
-   UI UPDATE & LOG
-   ========================= */
+    UI UPDATE & LOG
+    ========================= */
 const logDiv = document.getElementById('log');
 function log(text){
   const time = new Date().toLocaleTimeString();
   logDiv.innerHTML = `<div style="margin-bottom:6px"><small class="muted">[${time}]</small> ${escapeHtml(text)}</div>` + logDiv.innerHTML;
-  // limit log size
   if (logDiv.childElementCount > 200) logDiv.removeChild(logDiv.lastChild);
 }
 function escapeHtml(s){ return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;'); }
 
 function updateUI(){
-  // hero
+  document.getElementById('hero-name').innerText = hero.name;
+  document.getElementById('nameInput').placeholder = hero.name;
+
   document.getElementById('level').innerText = hero.level;
   document.getElementById('unspent').innerText = hero.unspent;
-  document.getElementById('xp').innerText = hero.xp;
+  document.getElementById('xp').innerText = Math.floor(hero.xp);
   document.getElementById('xpNeeded').innerText = xpNeededFor(hero.level);
   const xpPct = Math.min(100, Math.floor((hero.xp / xpNeededFor(hero.level)) * 100));
   document.getElementById('xpbar').style.width = xpPct + '%';
 
-  document.getElementById('hp').innerText = hero.hp;
-  document.getElementById('maxHp').innerText = hero.maxHp;
+  document.getElementById('hp').innerText = Math.floor(hero.hp);
+  document.getElementById('maxHp').innerText = Math.floor(hero.maxHp);
   document.getElementById('hpbar').style.width = Math.floor((hero.hp/hero.maxHp)*100) + '%';
 
-  document.getElementById('mp').innerText = hero.mp;
-  document.getElementById('maxMp').innerText = hero.maxMp;
+  document.getElementById('mp').innerText = Math.floor(hero.mp);
+  document.getElementById('maxMp').innerText = Math.floor(hero.maxMp);
   document.getElementById('mpbar').style.width = Math.floor((hero.mp/hero.maxMp)*100) + '%';
 
-  document.getElementById('atk').innerText = hero.atk;
-  document.getElementById('def').innerText = hero.def;
-  document.getElementById('gold').innerText = hero.gold;
+  document.getElementById('atk').innerText = Math.floor(hero.atk);
+  document.getElementById('def').innerText = hero.def.toFixed(1); // Defesa com uma casa decimal
+  document.getElementById('atkInterval').innerText = hero.attackInterval.toFixed(2);
+  document.getElementById('gold').innerText = Math.floor(hero.gold);
 
-  // attributes
   document.getElementById('str').innerText = hero.attr.str;
   document.getElementById('agi').innerText = hero.attr.agi;
   document.getElementById('vit').innerText = hero.attr.vit;
   document.getElementById('int').innerText = hero.attr.int;
   document.getElementById('dex').innerText = hero.attr.dex;
 
-  // area & kills
   document.getElementById('area').innerText = area;
   document.getElementById('areaKills').innerText = areaKills;
+  document.getElementById('respecCost').innerText = hero.respecCost; // Mostra o custo de respec
 
-  // enemy
+  // Poções nos botões
+  document.getElementById('hpPotCount').innerText = hero.potions.hp;
+  document.getElementById('mpPotCount').innerText = hero.potions.mp;
+
   if (enemy){
     document.getElementById('enemyName').innerText = enemy.name + (isBossFight ? " (BOSS)" : "");
     document.getElementById('enemyHp').innerText = Math.max(0, Math.floor(enemy.hp));
@@ -524,7 +570,6 @@ function updateUI(){
     document.getElementById('enemyHit').innerText = Math.floor(enemy.hit);
     document.getElementById('enemyInterval').innerText = (enemy.interval).toFixed(2);
   }
-  // shop
   renderShop();
   renderSpells();
 }
@@ -532,7 +577,13 @@ function updateUI(){
 function renderShop(){
   const shopDiv = document.getElementById('shop');
   shopDiv.innerHTML = '';
+  
   for (const key of Object.keys(SHOP_BASE)){
+    // Lógica para esconder Fireball após a compra
+    if (key === 'spell' && hero.spells.length > 0) {
+        continue;
+    }
+    
     const info = SHOP_BASE[key];
     const price = shopPrice(key);
     const el = document.createElement('div');
@@ -547,8 +598,6 @@ function renderShop(){
     </div>`;
     shopDiv.appendChild(el);
   }
-
-  // Potions quickinfo
   const potInfo = document.createElement('div');
   potInfo.style.marginTop='10px';
   potInfo.innerHTML = `<div class="small muted">Potions: HP ${hero.potions.hp} • MP ${hero.potions.mp}</div>
@@ -576,30 +625,118 @@ function renderSpells(){
 }
 
 /* =========================
-   INIT / START
-   ========================= */
+    SAVE / LOAD (localStorage)
+    ========================= */
+function saveGame(){
+  try {
+    const save = {
+      hero: hero,
+      area: area,
+      areaKills: areaKills,
+      isBossFight: isBossFight,
+      enemy: enemy
+    };
+    localStorage.setItem(SAVE_KEY, JSON.stringify(save));
+  } catch (e) {
+    console.warn('Save failed', e);
+  }
+}
+
+function loadGame(){
+  try {
+    const raw = localStorage.getItem(SAVE_KEY);
+    if (!raw) return false;
+    const data = JSON.parse(raw);
+    if (!data || !data.hero) return false;
+    
+    hero = data.hero;
+    // Adiciona respecCost se não existir (para saves antigos)
+    if (typeof hero.respecCost === 'undefined') {
+        hero.respecCost = INITIAL_RESPEC_COST;
+    }
+    
+    document.getElementById('nameInput').value = hero.name === "Wanderer" ? "" : hero.name;
+
+    area = data.area || 1;
+    areaKills = data.areaKills || 0;
+    isBossFight = !!data.isBossFight;
+    enemy = data.enemy || generateEnemy(isBossFight);
+    recalcDerived();
+    updateUI();
+    log(`Loaded save for ${hero.name} — Area ${area}`);
+    return true;
+  } catch (e) {
+    console.warn('Load failed', e);
+    return false;
+  }
+}
+
+function resetSave(){
+  if (confirm('Reset save? This will erase your progress.')) {
+    localStorage.removeItem(SAVE_KEY);
+    // reset to defaults
+    hero = {
+      name:"Wanderer",
+      level:1,xp:0,gold:0,unspent:0,
+      attr:{ str:1, agi:1, vit:1, int:1, dex:1 },
+      baseAtk:10,baseDef:5,baseHp:100,baseMp:30,atkBonus:0,defBonus:0,
+      potions:{hp:2, mp:1},spells:[],purchases:{ hpPot:0, mpPot:0, weapon:0, armor:0, spell:0 },
+      respecCost: INITIAL_RESPEC_COST
+    };
+    area = 1; areaKills = 0; isBossFight = false;
+    document.getElementById('nameInput').value = ""; 
+    recalcDerived();
+    spawnEnemy(false);
+    updateUI();
+    saveGame();
+    log('Save reset. New game started.');
+  }
+}
+
+/* =========================
+    INIT / START
+    ========================= */
 function init() {
-  // level 1 baseline: give unspent from levels passed (level1 => 0)
-  hero.unspent = (hero.level - 1) * ATTR_PER_LEVEL;
-  recalcDerived();
-  spawnEnemy(false);
-  updateUI();
+  const loaded = loadGame();
+  if (!loaded){
+    recalcDerived();
+    spawnEnemy(false);
+    updateUI();
+    log("No save found — start a new game. Use the input above to set your name.");
+    saveGame();
+  }
   startCombat();
+  setInterval(saveGame, AUTOSAVE_INTERVAL_MS); 
   log("Game started. Good luck, Wanderer.");
 }
 init();
 
 /* =========================
-   UI helpers
-   ========================= */
-function openShopPrompt(){
-  log("Shop is open on the left. Click Buy to purchase items.");
+    NAME UI helpers
+    ========================= */
+function setNameFromInput(){
+  const el = document.getElementById('nameInput');
+  let val = (el.value || '').trim();
+  if (!val) {
+    val = "Wanderer";
+  }
+  
+  if (hero.name !== val){
+      hero.name = val;
+      recalcDerived();
+      updateUI();
+      saveGame(); 
+      log(`Name set to ${hero.name}`);
+  }
+  el.value = '';
 }
 
 /* =========================
-   Manual saving/loading (future)
-   ========================= */
-// For now no persistent save. Could add localStorage later.
+    UI helpers + misc
+    ========================= */
+function openShopPrompt(){
+  log("Shop is open on the left. Click Buy to purchase items.");
+}
 
 </script>
 </body>
