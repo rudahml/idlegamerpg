@@ -10,7 +10,7 @@
   .wrap{max-width:980px;margin:18px auto;padding:18px;display:grid;grid-template-columns:360px 1fr;gap:18px}
   .card{background:var(--card);border-radius:10px;padding:12px;box-shadow:0 6px 24px rgba(0,0,0,.6)}
   h1{margin:0 0 12px;font-size:20px;color:var(--accent)}
-  small{color:var(--muted)}
+  small{color:#9aa0a6}
   .stats p{margin:6px 0}
   .attr-row{display:flex;gap:6px;align-items:center;margin:6px 0}
   .attr-row button{padding:4px 8px;border-radius:6px;border:none;background:#1b1b1f;color:#fff;cursor:pointer}
@@ -20,9 +20,9 @@
   .area{display:flex;flex-direction:column;gap:6px}
   .bar{height:14px;background:#0f0f11;border-radius:6px;overflow:hidden}
   .bar > i{display:block;height:100%;background:linear-gradient(90deg,#d65b5b,#d6b370);width:0%}
-  .small{font-size:13px;color:var(--muted)}
+  .small{font-size:13px;color:#9aa0a6}
   .shop-item{display:flex;justify-content:space-between;align-items:center;padding:8px;border-radius:6px;background:#0f1013;margin-bottom:6px}
-  .muted{color:var(--muted)}
+  .muted{color:#9aa0a6}
   .spells{display:flex;flex-direction:column;gap:6px;margin-top:8px}
   .top-controls{display:flex;gap:8px;align-items:center;margin-bottom:8px}
   input.name-input{background:#0f0f11;border:1px solid #222;padding:6px;border-radius:6px;color:#fff}
@@ -137,7 +137,7 @@ const AUTOSAVE_INTERVAL_MS = 5000;
 const HP_MP_RECOVERY_PCT = 0.20; 
 const INITIAL_RESPEC_COST = 5000; 
 
-// Novo: Array com nomes de monstros e chefes para áreas específicas
+// Array com nomes de monstros e chefes para áreas específicas
 const MONSTERS_DATA = [
     {area: 1, monster: "Slime", boss: "Slime King"},
     {area: 2, monster: "Common Bat", boss: "Vamprick"},
@@ -201,7 +201,7 @@ function recalcDerived() {
     AREA / ENEMY STATE
     ========================= */
 let area = 1;
-let areaKills = 0; 
+let areaKills = 0; // Contagem de 0 (monstro 1) a 9 (monstro 10). 10 = Boss
 let isBossFight = false;
 let enemy = {}; 
 
@@ -216,14 +216,23 @@ function areaGoldMultiplier(a){
 function generateEnemy(isBoss=false){
   const a = area;
   const lvl = hero.level;
+  
+  // Nível do monstro é baseado na contagem de mortes na área (1 a 10)
+  const monsterLevel = isBoss ? MONSTERS_PER_AREA : areaKills + 1;
+  
   let difficultyFactor;
   if (lvl <= 150) {
     difficultyFactor = 1 + (lvl-1) * 0.018 + (a-1)*0.006;
   } else {
     difficultyFactor = 1 + (150-1) * 0.018 + (lvl-150) * 0.07 + (a-1)*0.01;
   }
-  const baseHp = Math.floor(20 + a * 6 + lvl * 4) * difficultyFactor;
-  const baseAtk = Math.floor(3 + a * 1.5 + lvl * 0.7) * difficultyFactor;
+  
+  // **NOVO AUMENTO DE HP E ATK COM BASE NO NÍVEL DO MONSTRO NA ÁREA**
+  const hpScaling = monsterLevel * 2.5; 
+  const atkScaling = monsterLevel * 0.5;
+
+  const baseHp = Math.floor(20 + a * 6 + lvl * 4 + hpScaling) * difficultyFactor;
+  const baseAtk = Math.floor(3 + a * 1.5 + lvl * 0.7 + atkScaling) * difficultyFactor;
   
   // Hit Chance do inimigo diminuída pela defesa do herói
   const defReduction = hero.def * 0.35; 
@@ -232,7 +241,7 @@ function generateEnemy(isBoss=false){
 
   const interval = Math.max(0.6, 2.5 - (a*0.002) - (lvl*0.01));
 
-  // Novo: Escolhe o nome do monstro/chefe
+  // Escolhe o nome do monstro/chefe
   let monsterName;
   let bossName;
   const customData = MONSTERS_DATA.find(data => data.area === a);
@@ -242,12 +251,13 @@ function generateEnemy(isBoss=false){
   } else {
       // Usa os nomes padrão se a área não estiver na lista personalizada
       monsterName = DEFAULT_MONSTERS[Math.floor(a/30)%DEFAULT_MONSTERS.length];
-      bossName = `${monsterName} King`; // Nome de chefe genérico para áreas não personalizadas
+      bossName = `${monsterName} King`; 
   }
 
   if (isBoss) {
     return {
       name: bossName,
+      // Boss mantém alto multiplicador de HP para ser desafiador
       hp: Math.floor(baseHp * 5.5),
       maxHp: Math.floor(baseHp * 5.5),
       atk: Math.max(5, Math.floor(baseAtk * 1.6)),
@@ -257,7 +267,8 @@ function generateEnemy(isBoss=false){
     };
   } else {
     return {
-      name:`${monsterName} Lv${Math.max(1, Math.floor(a/3))}`,
+      // Nome do monstro inclui o nível atual (Ex: Slime Lv1)
+      name:`${monsterName} Lv${monsterLevel}`,
       hp: Math.floor(baseHp),
       maxHp: Math.floor(baseHp),
       atk: Math.max(1, Math.floor(baseAtk)),
@@ -364,13 +375,13 @@ function onEnemyDefeated(){
   if (isBossFight){
     log(`Boss defeated! You advance from Area ${area} to Area ${Math.min(AREAS_TOTAL, area+1)}.`);
     area = Math.min(AREAS_TOTAL, area+1);
-    areaKills = 0;
+    areaKills = 0; // Reseta para o monstro 1 (areaKills=0)
     isBossFight = false;
     spawnEnemy();
     updateUI();
     startCombat();
   } else {
-    areaKills++;
+    areaKills++; // Passa para o próximo nível de monstro (ex: de 0 para 1, ou seja, Lv1 para Lv2)
     if (areaKills >= MONSTERS_PER_AREA){
       isBossFight = true;
       spawnEnemy(true);
@@ -388,7 +399,7 @@ function onEnemyDefeated(){
     ========================= */
 function onHeroDeath(){
   stopCombat();
-  areaKills = 0;
+  areaKills = 0; // Recomeça do monstro 1
   isBossFight = false;
   recalcDerived();
   hero.hp = hero.maxHp;
@@ -585,7 +596,8 @@ function updateUI(){
   document.getElementById('dex').innerText = hero.attr.dex;
 
   document.getElementById('area').innerText = area;
-  document.getElementById('areaKills').innerText = areaKills;
+  // Agora mostra a contagem correta (1 a 10)
+  document.getElementById('areaKills').innerText = isBossFight ? 10 : areaKills + 1; 
   document.getElementById('respecCost').innerText = hero.respecCost; 
 
   // Poções nos botões
@@ -593,7 +605,8 @@ function updateUI(){
   document.getElementById('mpPotCount').innerText = hero.potions.mp;
 
   if (enemy){
-    document.getElementById('enemyName').innerText = enemy.name + (isBossFight ? " (BOSS)" : "");
+    document.getElementById('enemyName').innerText = enemy.name;
+    document.getElementById('enemyType').innerText = isBossFight ? " (BOSS)" : " (Monster)";
     document.getElementById('enemyHp').innerText = Math.max(0, Math.floor(enemy.hp));
     document.getElementById('enemyMaxHp').innerText = Math.floor(enemy.maxHp);
     document.getElementById('enemyHpbar').style.width = Math.floor(Math.max(0, enemy.hp / enemy.maxHp * 100)) + '%';
@@ -686,8 +699,6 @@ function loadGame(){
         hero.respecCost = INITIAL_RESPEC_COST;
     }
     
-    // O input não precisa ser preenchido, apenas a UI no final se encarrega de esconder.
-
     area = data.area || 1;
     areaKills = data.areaKills || 0;
     isBossFight = !!data.isBossFight;
