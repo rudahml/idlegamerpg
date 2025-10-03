@@ -162,7 +162,7 @@ const SHOP_BASE = {
   weapon: {name:"Weapon Upgrade (+atk)", basePrice:1000, action:"weaponUp"}, 
   armor: {name:"Armor Upgrade (+def)", basePrice:1000, action:"armorUp"}, 
   spell: {name:"Learn Fireball", basePrice:10000, action:"learnSpell"},
-  // NOVO: Magia de cura
+  // Magia de cura
   healSpell: {name:"Learn Heal", basePrice:100000, action:"learnHeal"}
 };
 
@@ -186,7 +186,7 @@ let hero = {
   spells:[], 
   purchases: { hpPot:0, mpPot:0, weapon:0, armor:0, spell:0, healSpell:0 },
   respecCost: INITIAL_RESPEC_COST,
-  hpRegenRate: 0, // NOVO: Taxa de regeneração
+  hpRegenRate: 0, // Taxa de regeneração
 };
 
 function recalcDerived() {
@@ -198,17 +198,20 @@ function recalcDerived() {
   // Defesa com 0.1 por ponto de Vit
   hero.def = hero.baseDef + (A.vit * 0.1) + hero.defBonus;
   
-  // Attack Interval ajustado para Agility (1 Agi=3.5s, 300 Agi=0.5s)
-  const agiReduction = (A.agi - 1) * 0.01003;
-  hero.attackInterval = Math.max(0.5, 3.5 - agiReduction); 
-  
+  // *******************************************************************
+  // ALTERAÇÃO: Intervalo Base de Ataque para 2.5s.
+  // Novo cálculo para Agility: (2.5 - 0.5) / 299 = ~0.006689
+  const agiReduction = (A.agi - 1) * 0.006689; 
+  hero.attackInterval = Math.max(0.5, 2.5 - agiReduction); 
+  // *******************************************************************
+
   hero.hitChance = Math.min(98, 70 + A.dex * 1.2); 
   
   if (!hero.hp || hero.hp > hero.maxHp) hero.hp = hero.maxHp;
   if (!hero.mp || hero.mp > hero.maxMp) hero.mp = hero.maxMp;
 
-  // NOVO: Recalcula a taxa de regeneração de HP
-  hero.hpRegenRate = 0.01 * Math.floor(hero.attr.vit / 5);
+  // Recalcula a taxa de regeneração de HP (0.01 por 1 ponto de Vitality)
+  hero.hpRegenRate = 0.01 * hero.attr.vit; 
 }
 
 /* =========================
@@ -241,7 +244,7 @@ function generateEnemy(isBoss=false){
     difficultyFactor = 1 + (150-1) * 0.018 + (lvl-150) * 0.07 + (a-1)*0.01;
   }
   
-  // NOVO AUMENTO DE HP E ATK COM BASE NO NÍVEL DO MONSTRO NA ÁREA
+  // AUMENTO DE HP E ATK COM BASE NO NÍVEL DO MONSTRO NA ÁREA
   const hpScaling = monsterLevel * 2.5; 
   const atkScaling = monsterLevel * 0.5;
 
@@ -498,7 +501,7 @@ function buyItem(key){
   } else if (key === 'spell'){
     hero.spells.push({id:Date.now(), name:"Fireball", mpCost:8, power: Math.floor(30 + area * 1.5 + hero.level * 0.8), type:"attack"});
     log("You learned Fireball.");
-  } else if (key === 'healSpell'){ // NOVO: Compra da magia de cura
+  } else if (key === 'healSpell'){ // Magia de cura
     hero.spells.push({id:Date.now(), name:"Heal", mpCost:20, power: Math.floor(hero.maxHp * 0.25 + hero.attr.int * 2), type:"heal"});
     log("You learned Heal.");
   }
@@ -586,73 +589,6 @@ function resetAllocation(){
 }
 
 /* =========================
-    ON ENEMY / BOSS DEFEAT
-    ========================= */
-function onEnemyDefeated(){
-  stopCombat();
-  const gold = Math.max(0, Math.floor(enemy.goldReward));
-  hero.gold += gold;
-  log(`Defeated ${enemy.name}. Gained ${gold} gold.`);
-  
-  // XP Gain: Aplica MONSTER_XP_MULTIPLIER (1.8) nos monstros normais
-  let xpGain;
-  if (isBossFight) {
-      // Chefe ganha 2.5x o HP do monstro base
-      xpGain = Math.max(5, Math.floor((enemy.maxHp/10) * 2.5));
-  } else {
-      // Monstro normal ganha 1.8x o HP do monstro base
-      xpGain = Math.max(5, Math.floor((enemy.maxHp/10) * MONSTER_XP_MULTIPLIER));
-  }
-
-  gainXP(xpGain);
-
-  if (isBossFight){
-    log(`Boss defeated! You advance from Area ${area} to Area ${Math.min(AREAS_TOTAL, area+1)}.`);
-    area = Math.min(AREAS_TOTAL, area+1);
-    areaKills = 0; // Reseta para o monstro 1 (areaKills=0)
-    isBossFight = false;
-    spawnEnemy();
-    updateUI();
-    startCombat();
-  } else {
-    areaKills++; // Passa para o próximo nível de monstro (ex: de 0 para 1, ou seja, Lv1 para Lv2)
-    if (areaKills >= MONSTERS_PER_AREA){
-      isBossFight = true;
-      spawnEnemy(true);
-      updateUI();
-      startCombat();
-    } else {
-      spawnEnemy(false);
-      startCombat();
-    }
-  }
-}
-
-/* =========================
-    HERO DEATH: restart area
-    ========================= */
-function onHeroDeath(){
-  stopCombat();
-  areaKills = 0; // Recomeça do monstro 1
-  isBossFight = false;
-  recalcDerived();
-  hero.hp = hero.maxHp;
-  hero.mp = hero.maxMp;
-  spawnEnemy();
-  updateUI();
-  startCombat();
-}
-
-/* =========================
-    SPAWN ENEMY
-    ========================= */
-function spawnEnemy(boss=false){
-  enemy = generateEnemy(boss);
-  isBossFight = !!boss;
-  updateUI();
-}
-
-/* =========================
     UI UPDATE & LOG
     ========================= */
 const logDiv = document.getElementById('log');
@@ -689,7 +625,7 @@ function updateUI(){
   document.getElementById('hp').innerText = Math.floor(hero.hp);
   document.getElementById('maxHp').innerText = Math.floor(hero.maxHp);
   document.getElementById('hpbar').style.width = Math.floor((hero.hp/hero.maxHp)*100) + '%';
-  document.getElementById('hpRegen').innerText = hero.hpRegenRate.toFixed(2); // NOVO: Mostra a regeneração
+  document.getElementById('hpRegen').innerText = hero.hpRegenRate.toFixed(2); // Mostra a regeneração
 
   document.getElementById('mp').innerText = Math.floor(hero.mp);
   document.getElementById('maxMp').innerText = Math.floor(hero.maxMp);
@@ -805,9 +741,12 @@ function loadGame(){
     if (!data || !data.hero) return false;
     
     hero = data.hero;
-    // Adiciona respecCost se não existir (para saves antigos)
+    // Adiciona respecCost e hpRegenRate se não existirem (para saves antigos)
     if (typeof hero.respecCost === 'undefined') {
         hero.respecCost = INITIAL_RESPEC_COST;
+    }
+    if (typeof hero.hpRegenRate === 'undefined') {
+        hero.hpRegenRate = 0;
     }
     
     area = data.area || 1;
@@ -866,7 +805,7 @@ function init() {
   // Usa hero.name para a mensagem final
   log(`Game started. Good luck, ${hero.name}.`); 
   
-  // NOVO: Adiciona a regeneração passiva
+  // Adiciona a regeneração passiva
   setInterval(() => {
     if (hero.hp < hero.maxHp) {
       hero.hp += hero.hpRegenRate;
