@@ -57,7 +57,7 @@ You can continue exactly where you left off by reopening the game in the same br
 - HTML5
 - CSS3
 - JavaScript (ES6)
-- localStorage for automatic saving
+- localStorage for automatic saving (//FUTURE UPDATE)
 
 ---
 
