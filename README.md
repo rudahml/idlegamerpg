@@ -26,7 +26,7 @@ Players control a hero, level up attributes, defeat monsters, face bosses, and p
   - Allocate points to attributes on level-up.
 
 - **Enemies**:
-  - Each area has regular monsters and a boss every 10 enemies.
+  - Each area has regular monsters and a boss every 10 enemies. (Future UPDATE: New Monsters Name)
   - Bosses provide higher XP and gold rewards.
 
 - **Progression**:
@@ -63,9 +63,8 @@ You can continue exactly where you left off by reopening the game in the same br
 
 ## 🔧 How to Run
 
-1. Clone this repository:
-   ```bash
-   git clone https://rudahml.github.io/idlegamerpg/
+https://rudahml.github.io/idlegamerpg/
+
 Open index.html in any modern web browser.
 
 Enjoy the game!
