@@ -39,7 +39,7 @@ Players control a hero, level up attributes, defeat monsters, face bosses, and p
 
 ---
 
-## 💾 Saving
+## 💾 Saving (//FUTURE UPDATE)
 
 The game automatically saves progress using the browser's **localStorage**:
 
