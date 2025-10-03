@@ -1,0 +1,606 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1" />
+<title>Idle Souls-RPG (Idle SoulsLike)</title>
+<style>
+  :root{--bg:#0b0b0f;--card:#121217;--accent:#d6b370;--muted:#9aa0a6;--good:#6ad06a}
+  body{margin:0;font-family:Inter,Segoe UI,Arial;background:linear-gradient(180deg,#06060a, #0b0b0f);color:#e6e6e6}
+  .wrap{max-width:980px;margin:18px auto;padding:18px;display:grid;grid-template-columns:360px 1fr;gap:18px}
+  .card{background:var(--card);border-radius:10px;padding:12px;box-shadow:0 6px 24px rgba(0,0,0,.6)}
+  h1{margin:0 0 12px;font-size:20px;color:var(--accent)}
+  small{color:var(--muted)}
+  .stats p{margin:6px 0}
+  .attr-row{display:flex;gap:6px;align-items:center;margin:6px 0}
+  .attr-row button{padding:4px 8px;border-radius:6px;border:none;background:#1b1b1f;color:#fff;cursor:pointer}
+  button.shop{background:linear-gradient(90deg,#2a6bd6,#2a9ad6);border:none;padding:8px;border-radius:6px;color:#fff;cursor:pointer}
+  .log{height:180px;overflow:auto;background:#0d0d0f;padding:8px;border-radius:6px;font-size:13px;color:#cfcfcf}
+  .controls{display:flex;gap:8px;margin-top:8px}
+  .area{display:flex;flex-direction:column;gap:6px}
+  .bar{height:14px;background:#0f0f11;border-radius:6px;overflow:hidden}
+  .bar > i{display:block;height:100%;background:linear-gradient(90deg,#d65b5b,#d6b370);width:0%}
+  .small{font-size:13px;color:var(--muted)}
+  .shop-item{display:flex;justify-content:space-between;align-items:center;padding:8px;border-radius:6px;background:#0f1013;margin-bottom:6px}
+  .muted{color:var(--muted)}
+  .spells{display:flex;flex-direction:column;gap:6px;margin-top:8px}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <!-- LEFT: Player & Attributes & Shop -->
+  <div class="card">
+    <h1>Idle SoulsLike - Hero</h1>
+    <div class="stats">
+      <p><strong id="hero-name">Wanderer</strong> <small class="muted"> (Idle RPG)</small></p>
+      <p>Level: <strong id="level">1</strong> / 200 &nbsp; • &nbsp; Unspent Points: <strong id="unspent">0</strong></p>
+      <p>XP: <span id="xp">0</span> / <span id="xpNeeded">50</span></p>
+      <div class="bar" title="XP bar"><i id="xpbar" style="width:0%"></i></div>
+
+      <p>HP: <strong id="hp">100</strong> / <strong id="maxHp">100</strong></p>
+      <div class="bar" title="HP"><i id="hpbar" style="width:100%"></i></div>
+
+      <p>MP: <strong id="mp">30</strong> / <strong id="maxMp">30</strong></p>
+      <div class="bar" title="MP"><i id="mpbar" style="width:100%"></i></div>
+
+      <p>Attack: <strong id="atk">10</strong> &nbsp; • &nbsp; Defense: <strong id="def">5</strong></p>
+      <p>Gold: <strong id="gold">0</strong> &nbsp; • &nbsp; Area: <strong id="area">1</strong> / 300</p>
+      <p class="small">Monsters defeated in area: <span id="areaKills">0</span> / 10</p>
+    </div>
+
+    <hr style="border:none;height:1px;background:#0e0e11;margin:12px 0">
+
+    <div>
+      <p class="small">Attributes (3 points per level)</p>
+      <div class="attr-row"><div style="flex:1"><b>Strength</b><div class="small">Damage</div></div><div><span id="str">1</span></div><div><button onclick="alloc('str')">+1</button></div></div>
+      <div class="attr-row"><div style="flex:1"><b>Agility</b><div class="small">Attack speed</div></div><div><span id="agi">1</span></div><div><button onclick="alloc('agi')">+1</button></div></div>
+      <div class="attr-row"><div style="flex:1"><b>Vitality</b><div class="small">HP & defense</div></div><div><span id="vit">1</span></div><div><button onclick="alloc('vit')">+1</button></div></div>
+      <div class="attr-row"><div style="flex:1"><b>Intelligence</b><div class="small">MP & spells</div></div><div><span id="int">1</span></div><div><button onclick="alloc('int')">+1</button></div></div>
+      <div class="attr-row"><div style="flex:1"><b>Dexterity</b><div class="small">Hit chance & crit</div></div><div><span id="dex">1</span></div><div><button onclick="alloc('dex')">+1</button></div></div>
+    </div>
+
+    <div style="margin-top:10px">
+      <button class="shop" onclick="resetAllocation()">Reset Alloc (respec)</button>
+    </div>
+
+    <hr style="border:none;height:1px;background:#0e0e11;margin:12px 0">
+
+    <h3 style="margin:6px 0">Shop</h3>
+    <div id="shop" style="max-height:320px;overflow:auto">
+      <!-- shop items injected here -->
+    </div>
+  </div>
+
+  <!-- RIGHT: Area, Enemy, Controls, Log -->
+  <div class="card">
+    <h1>Area & Combat</h1>
+    <div class="area">
+      <p><strong id="enemyName">Weak Slime</strong> <small class="muted" id="enemyType"> (Monster)</small></p>
+      <p>Enemy HP: <strong id="enemyHp">30</strong> / <strong id="enemyMaxHp">30</strong></p>
+      <div class="bar"><i id="enemyHpbar" style="width:100%"></i></div>
+
+      <p class="small">Enemy Attack: <span id="enemyAtk">5</span> &nbsp; • &nbsp; Hit Chance: <span id="enemyHit">85</span>%</p>
+      <p class="small">Attack Interval: <span id="enemyInterval">2.5</span>s</p>
+
+      <div class="controls">
+        <button onclick="usePotion('hp')">Use HP Potion</button>
+        <button onclick="usePotion('mp')">Use MP Potion</button>
+        <button onclick="manualAttack()">Manual Attack</button>
+        <button onclick="openShopPrompt()">Open Shop</button>
+      </div>
+
+      <div style="margin-top:10px">
+        <h3 style="margin:6px 0">Spells</h3>
+        <div class="spells" id="spellsList">
+          <div class="small muted">No spells purchased.</div>
+        </div>
+      </div>
+
+      <hr style="border:none;height:1px;background:#0e0e11;margin:12px 0">
+      <div class="log" id="log"></div>
+    </div>
+  </div>
+</div>
+
+<script>
+/* =========================
+   GAME CONFIG / BALANCE
+   ========================= */
+const MAX_LEVEL = 200;
+const AREAS_TOTAL = 300;
+const MONSTERS_PER_AREA = 10; // then boss
+const ATTR_PER_LEVEL = 3;
+const BASE_XP_REQ = 50; // xp needed for level1->2
+const BASE_GOLD = 5; // base gold per monster before area multiplier
+const SHOP_BASE = {
+  hpPot: {name:"HP Potion", basePrice:10, action:"hpPotion"},
+  mpPot: {name:"MP Potion", basePrice:8, action:"mpPotion"},
+  weapon: {name:"Weapon Upgrade (+atk)", basePrice:100, action:"weaponUp"},
+  armor: {name:"Armor Upgrade (+def)", basePrice:100, action:"armorUp"},
+  spell: {name:"Learn Fireball", basePrice:150, action:"learnSpell"}
+};
+
+/* =========================
+   HERO STATE
+   ========================= */
+let hero = {
+  name:"Wanderer",
+  level:1,
+  xp:0,
+  gold:0,
+  unspent:0,
+  attr:{ str:1, agi:1, vit:1, int:1, dex:1 },
+  baseAtk:10,
+  baseDef:5,
+  baseHp:100,
+  baseMp:30,
+  atkBonus:0,
+  defBonus:0,
+  potions:{hp:2, mp:1},
+  spells:[], // object {id,name,mpCost,power}
+  purchases: { hpPot:0, mpPot:0, weapon:0, armor:0, spell:0 }
+};
+
+function recalcDerived() {
+  // Derived stats from attributes
+  const A = hero.attr;
+  hero.maxHp = hero.baseHp + (A.vit * 10) + (hero.level * 2) + (hero.defBonus * 2);
+  hero.maxMp = hero.baseMp + (A.int * 6) + Math.floor(hero.level/2);
+  hero.atk = hero.baseAtk + Math.floor(A.str * 2) + hero.atkBonus;
+  hero.def = hero.baseDef + Math.floor(A.vit * 0.8) + hero.defBonus;
+  hero.attackInterval = Math.max(0.25, 2.0 - (A.agi * 0.012) - (hero.level * 0.002)); // seconds
+  hero.hitChance = Math.min(98, 70 + A.dex * 1.2); // %
+  // clamp hp/mp to max when recalculated only on level up or respec
+  if (!hero.hp || hero.hp > hero.maxHp) hero.hp = hero.maxHp;
+  if (!hero.mp || hero.mp > hero.maxMp) hero.mp = hero.maxMp;
+}
+
+/* =========================
+   AREA / ENEMY STATE
+   ========================= */
+let area = 1;
+let areaKills = 0; // monsters killed in this area (0..MONSTERS_PER_AREA-1)
+let isBossFight = false;
+let enemy = {}; // current enemy object
+
+/* =========================
+   HELPER: difficulty curve
+   ========================= */
+// areaMultiplier: gold multiplier 1x -> 100x across areas
+function areaGoldMultiplier(a){
+  if (a <=1) return 1;
+  return 1 + (a-1) * (99 / (AREAS_TOTAL - 1)); // linear from 1 to 100
+}
+
+// enemy scaling: based on area number and hero level
+function generateEnemy(isBoss=false){
+  const a = area;
+  // base stats grow with area and hero level
+  // difficulty curve: up to area that corresponds to level 150 it's medium, after it skyrockets
+  // Map hero.level to a difficulty factor
+  const lvl = hero.level;
+  let difficultyFactor;
+  if (lvl <= 150) {
+    difficultyFactor = 1 + (lvl-1) * 0.018 + (a-1)*0.006; // moderate growth
+  } else {
+    // steeper
+    difficultyFactor = 1 + (150-1) * 0.018 + (lvl-150) * 0.07 + (a-1)*0.01;
+  }
+  // base enemy stats
+  const baseHp = Math.floor(20 + a * 6 + lvl * 4) * difficultyFactor;
+  const baseAtk = Math.floor(3 + a * 1.5 + lvl * 0.7) * difficultyFactor;
+  const hit = Math.max(40, 65 - Math.floor(hero.attr.dex/2) + Math.floor(a*0.05));
+  const interval = Math.max(0.6, 2.5 - (a*0.002) - (lvl*0.01)); // enemy attack interval
+  // boss scaling larger
+  if (isBoss) {
+    return {
+      name:`Area ${a} Boss`,
+      hp: Math.floor(baseHp * 5.5),
+      maxHp: Math.floor(baseHp * 5.5),
+      atk: Math.max(5, Math.floor(baseAtk * 1.6)),
+      hit: Math.min(98, Math.floor(hit * 1.02)),
+      interval: Math.max(0.8, interval * 0.9),
+      goldReward: Math.floor((BASE_GOLD * areaGoldMultiplier(a)) * 8)
+    };
+  } else {
+    return {
+      name:`${["Slime","Goblin","Wolf","Bandit","Skeleton","Gargoyle","Cultist","Warden","Hollow","Shade"][Math.floor(a/30)%10]} Lv${Math.max(1, Math.floor(a/3))}`,
+      hp: Math.floor(baseHp),
+      maxHp: Math.floor(baseHp),
+      atk: Math.max(1, Math.floor(baseAtk)),
+      hit: Math.max(30, Math.floor(hit)),
+      interval: Math.max(0.6, interval),
+      goldReward: Math.floor(BASE_GOLD * areaGoldMultiplier(a) * (1 + Math.random()*0.4))
+    };
+  }
+}
+
+/* =========================
+   XP and Leveling
+   ========================= */
+function xpNeededFor(level){
+  // progressive XP needed: base * level^1.12 (gentle curve). but cap huge.
+  return Math.floor(BASE_XP_REQ * Math.pow(level, 1.12));
+}
+
+function gainXP(amount){
+  hero.xp += amount;
+  log(`Gained ${amount} XP.`);
+  // level up while possible
+  while (hero.level < MAX_LEVEL && hero.xp >= xpNeededFor(hero.level)){
+    hero.xp -= xpNeededFor(hero.level);
+    hero.level++;
+    hero.unspent += ATTR_PER_LEVEL;
+    hero.baseHp += 8; // small base HP growth each level
+    hero.baseMp += 3;
+    log(`Leveled up! You are now level ${hero.level}. +${ATTR_PER_LEVEL} attribute points.`);
+    // on reaching cap only keep xp up to cap
+    if (hero.level >= MAX_LEVEL){
+      hero.xp = Math.min(hero.xp, xpNeededFor(hero.level)-1);
+      break;
+    }
+  }
+  recalcDerived();
+  updateUI();
+}
+
+/* =========================
+   COMBAT LOGIC
+   ========================= */
+let autoAttackTimer = null;
+let enemyAttackTimer = null;
+
+function startCombat(){
+  stopCombat(); // ensure no double timers
+  // start enemy attack loop
+  enemyAttackTimer = setInterval(() => {
+    if (!enemy || enemy.hp <= 0) return;
+    // hit chance
+    if (Math.random()*100 <= enemy.hit){
+      // calculate damage considering hero.def
+      const raw = enemy.atk;
+      const mitig = Math.floor(hero.def * 0.7);
+      const dmg = Math.max(1, raw - mitig);
+      hero.hp -= dmg;
+      log(`Enemy hits you for ${dmg} damage.`);
+      if (hero.hp <= 0){
+        hero.hp = 0;
+        log("You died! Area will restart.");
+        onHeroDeath();
+      }
+      updateUI();
+    } else {
+      log("Enemy missed!");
+    }
+  }, Math.max(250, Math.floor(enemy.interval * 1000)));
+
+  // start hero auto-attack loop
+  autoAttackTimer = setInterval(() => {
+    if (!enemy || enemy.hp <= 0) return;
+    heroAutoAttack();
+  }, Math.max(150, Math.floor(hero.attackInterval * 1000)));
+}
+
+function stopCombat(){
+  if (autoAttackTimer) { clearInterval(autoAttackTimer); autoAttackTimer = null; }
+  if (enemyAttackTimer) { clearInterval(enemyAttackTimer); enemyAttackTimer = null; }
+}
+
+function heroAutoAttack(){
+  if (hero.hp <= 0 || !enemy) return;
+  // hit chance
+  if (Math.random()*100 <= hero.hitChance){
+    // critical chance based on dex
+    const crit = Math.random() < Math.min(0.25, hero.attr.dex * 0.0025);
+    const baseDmg = hero.atk + Math.floor(hero.attr.str * 1.5);
+    const dmg = Math.max(1, Math.floor(baseDmg * (crit?1.8:1)));
+    enemy.hp -= dmg;
+    log(`You hit ${enemy.name} for ${dmg}${crit ? ' (CRIT!)' : ''}.`);
+    if (enemy.hp <= 0){
+      enemy.hp = 0;
+      onEnemyDefeated();
+    }
+    updateUI();
+  } else {
+    log("You missed the attack!");
+  }
+}
+
+function manualAttack(){
+  heroAutoAttack();
+}
+
+/* =========================
+   ON ENEMY / BOSS DEFEAT
+   ========================= */
+function onEnemyDefeated(){
+  stopCombat();
+  const gold = Math.max(0, Math.floor(enemy.goldReward));
+  hero.gold += gold;
+  log(`Defeated ${enemy.name}. Gained ${gold} gold.`);
+  // XP reward: scaled from enemy
+  const xpGain = Math.max(5, Math.floor((enemy.maxHp/10) * (isBossFight ? 2.5 : 1)));
+  gainXP(xpGain);
+
+  if (isBossFight){
+    // beat boss -> area advance
+    log(`Boss defeated! You advance from Area ${area} to Area ${Math.min(AREAS_TOTAL, area+1)}.`);
+    area = Math.min(AREAS_TOTAL, area+1);
+    areaKills = 0;
+    isBossFight = false;
+    spawnEnemy();
+    updateUI();
+    startCombat();
+  } else {
+    areaKills++;
+    if (areaKills >= MONSTERS_PER_AREA){
+      // trigger boss
+      isBossFight = true;
+      spawnEnemy(true);
+      updateUI();
+      startCombat();
+    } else {
+      // spawn next regular enemy
+      spawnEnemy(false);
+      startCombat();
+    }
+  }
+}
+
+/* =========================
+   HERO DEATH: restart area
+   ========================= */
+function onHeroDeath(){
+  stopCombat();
+  // penalty could be gold loss or XP loss in future; for now restart area state
+  areaKills = 0;
+  isBossFight = false;
+  // restore hero to full HP/MP to retry area
+  recalcDerived();
+  hero.hp = hero.maxHp;
+  hero.mp = hero.maxMp;
+  spawnEnemy();
+  updateUI();
+  startCombat();
+}
+
+/* =========================
+   SPAWN ENEMY
+   ========================= */
+function spawnEnemy(boss=false){
+  enemy = generateEnemy(boss);
+  isBossFight = !!boss;
+  updateUI();
+}
+
+/* =========================
+   SHOP / ITEMS
+   ========================= */
+function shopPrice(key){
+  const base = SHOP_BASE[key].basePrice;
+  const count = hero.purchases[key] || 0;
+  return Math.floor(base * Math.pow(1.10, count)); // +10% per purchase
+}
+
+function buyItem(key){
+  const price = shopPrice(key);
+  if (hero.gold < price){
+    log("Not enough gold.");
+    return;
+  }
+  hero.gold -= price;
+  hero.purchases[key] = (hero.purchases[key]||0) + 1;
+  if (key === 'hpPot'){
+    hero.potions.hp += 1;
+    log("Bought HP Potion.");
+  } else if (key === 'mpPot'){
+    hero.potions.mp += 1;
+    log("Bought MP Potion.");
+  } else if (key === 'weapon'){
+    hero.atkBonus += 3 + Math.floor(hero.purchases.weapon * 1.2);
+    log("Weapon upgraded. Attack increased.");
+  } else if (key === 'armor'){
+    hero.defBonus += 2 + Math.floor(hero.purchases.armor * 1.1);
+    log("Armor upgraded. Defense increased.");
+  } else if (key === 'spell'){
+    // simple Fireball learning
+    hero.spells.push({id:Date.now(), name:"Fireball", mpCost:8, power: Math.floor(30 + area * 1.5)});
+    log("You learned Fireball.");
+  }
+  recalcDerived();
+  updateUI();
+}
+
+/* =========================
+   POTIONS / SPELLS USE
+   ========================= */
+function usePotion(type){
+  if (type==='hp'){
+    if (hero.potions.hp <= 0){ log("No HP potions."); return; }
+    hero.potions.hp--;
+    const heal = Math.floor(hero.maxHp * 0.45);
+    hero.hp = Math.min(hero.maxHp, hero.hp + heal);
+    log(`Used HP potion. Restored ${heal} HP.`);
+    updateUI();
+  } else {
+    if (hero.potions.mp <= 0){ log("No MP potions."); return; }
+    hero.potions.mp--;
+    const regen = Math.floor(hero.maxMp * 0.6);
+    hero.mp = Math.min(hero.maxMp, hero.mp + regen);
+    log(`Used MP potion. Restored ${regen} MP.`);
+    updateUI();
+  }
+}
+
+function castSpell(spellIndex){
+  const spell = hero.spells[spellIndex];
+  if (!spell){ log("No such spell."); return; }
+  if (hero.mp < spell.mpCost){ log("Not enough MP."); return; }
+  if (!enemy || enemy.hp <= 0) { log("No target."); return; }
+  hero.mp -= spell.mpCost;
+  // spell damage scaled by intelligence
+  const power = Math.floor(spell.power + hero.attr.int * 2 + hero.level * 0.6);
+  enemy.hp -= power;
+  log(`Cast ${spell.name} for ${power} damage.`);
+  if (enemy.hp <= 0) onEnemyDefeated();
+  updateUI();
+}
+
+/* =========================
+   ATTR ALLOCATION
+   ========================= */
+function alloc(which){
+  if (hero.unspent <= 0){ log("No attribute points."); return; }
+  hero.attr[which] += 1;
+  hero.unspent -= 1;
+  recalcDerived();
+  updateUI();
+  log(`+1 ${which.toUpperCase()}`);
+}
+function resetAllocation(){
+  // refunds all allocated points to point 1 baseline (simple respec)
+  const totalAllocated = (hero.attr.str + hero.attr.agi + hero.attr.vit + hero.attr.int + hero.attr.dex) - 5;
+  const baseline = 1;
+  // compute spent points from levels
+  const fromLevels = (hero.level - 1) * ATTR_PER_LEVEL;
+  hero.attr = {str:1, agi:1, vit:1, int:1, dex:1};
+  hero.unspent = fromLevels;
+  recalcDerived();
+  updateUI();
+  log("Attributes reset. All points refunded to unspent.");
+}
+
+/* =========================
+   UI UPDATE & LOG
+   ========================= */
+const logDiv = document.getElementById('log');
+function log(text){
+  const time = new Date().toLocaleTimeString();
+  logDiv.innerHTML = `<div style="margin-bottom:6px"><small class="muted">[${time}]</small> ${escapeHtml(text)}</div>` + logDiv.innerHTML;
+  // limit log size
+  if (logDiv.childElementCount > 200) logDiv.removeChild(logDiv.lastChild);
+}
+function escapeHtml(s){ return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;'); }
+
+function updateUI(){
+  // hero
+  document.getElementById('level').innerText = hero.level;
+  document.getElementById('unspent').innerText = hero.unspent;
+  document.getElementById('xp').innerText = hero.xp;
+  document.getElementById('xpNeeded').innerText = xpNeededFor(hero.level);
+  const xpPct = Math.min(100, Math.floor((hero.xp / xpNeededFor(hero.level)) * 100));
+  document.getElementById('xpbar').style.width = xpPct + '%';
+
+  document.getElementById('hp').innerText = hero.hp;
+  document.getElementById('maxHp').innerText = hero.maxHp;
+  document.getElementById('hpbar').style.width = Math.floor((hero.hp/hero.maxHp)*100) + '%';
+
+  document.getElementById('mp').innerText = hero.mp;
+  document.getElementById('maxMp').innerText = hero.maxMp;
+  document.getElementById('mpbar').style.width = Math.floor((hero.mp/hero.maxMp)*100) + '%';
+
+  document.getElementById('atk').innerText = hero.atk;
+  document.getElementById('def').innerText = hero.def;
+  document.getElementById('gold').innerText = hero.gold;
+
+  // attributes
+  document.getElementById('str').innerText = hero.attr.str;
+  document.getElementById('agi').innerText = hero.attr.agi;
+  document.getElementById('vit').innerText = hero.attr.vit;
+  document.getElementById('int').innerText = hero.attr.int;
+  document.getElementById('dex').innerText = hero.attr.dex;
+
+  // area & kills
+  document.getElementById('area').innerText = area;
+  document.getElementById('areaKills').innerText = areaKills;
+
+  // enemy
+  if (enemy){
+    document.getElementById('enemyName').innerText = enemy.name + (isBossFight ? " (BOSS)" : "");
+    document.getElementById('enemyHp').innerText = Math.max(0, Math.floor(enemy.hp));
+    document.getElementById('enemyMaxHp').innerText = Math.floor(enemy.maxHp);
+    document.getElementById('enemyHpbar').style.width = Math.floor(Math.max(0, enemy.hp / enemy.maxHp * 100)) + '%';
+    document.getElementById('enemyAtk').innerText = Math.floor(enemy.atk);
+    document.getElementById('enemyHit').innerText = Math.floor(enemy.hit);
+    document.getElementById('enemyInterval').innerText = (enemy.interval).toFixed(2);
+  }
+  // shop
+  renderShop();
+  renderSpells();
+}
+
+function renderShop(){
+  const shopDiv = document.getElementById('shop');
+  shopDiv.innerHTML = '';
+  for (const key of Object.keys(SHOP_BASE)){
+    const info = SHOP_BASE[key];
+    const price = shopPrice(key);
+    const el = document.createElement('div');
+    el.className = 'shop-item';
+    el.innerHTML = `<div>
+      <div style="font-weight:600">${info.name}</div>
+      <div class="small muted">Owned: ${hero.purchases[key]||0}</div>
+    </div>
+    <div style="text-align:right">
+      <div style="font-weight:700">${price}g</div>
+      <div style="margin-top:6px"><button onclick="buyItem('${key}')" class="shop">Buy</button></div>
+    </div>`;
+    shopDiv.appendChild(el);
+  }
+
+  // Potions quickinfo
+  const potInfo = document.createElement('div');
+  potInfo.style.marginTop='10px';
+  potInfo.innerHTML = `<div class="small muted">Potions: HP ${hero.potions.hp} • MP ${hero.potions.mp}</div>
+  <div class="small muted">Spells owned: ${hero.spells.length}</div>`;
+  shopDiv.appendChild(potInfo);
+}
+
+function renderSpells(){
+  const sdiv = document.getElementById('spellsList');
+  sdiv.innerHTML = '';
+  if (hero.spells.length === 0) {
+    sdiv.innerHTML = '<div class="small muted">No spells purchased.</div>';
+    return;
+  }
+  hero.spells.forEach((s,i) => {
+    const node = document.createElement('div');
+    node.className='shop-item';
+    node.innerHTML = `<div>
+      <div style="font-weight:600">${s.name}</div>
+      <div class="small muted">MP: ${s.mpCost} • Power: ${s.power}</div>
+    </div>
+    <div><button onclick="castSpell(${i})" class="shop">Cast</button></div>`;
+    sdiv.appendChild(node);
+  });
+}
+
+/* =========================
+   INIT / START
+   ========================= */
+function init() {
+  // level 1 baseline: give unspent from levels passed (level1 => 0)
+  hero.unspent = (hero.level - 1) * ATTR_PER_LEVEL;
+  recalcDerived();
+  spawnEnemy(false);
+  updateUI();
+  startCombat();
+  log("Game started. Good luck, Wanderer.");
+}
+init();
+
+/* =========================
+   UI helpers
+   ========================= */
+function openShopPrompt(){
+  log("Shop is open on the left. Click Buy to purchase items.");
+}
+
+/* =========================
+   Manual saving/loading (future)
+   ========================= */
+// For now no persistent save. Could add localStorage later.
+
+</script>
+</body>
+</html>
