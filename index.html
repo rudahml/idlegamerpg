@@ -137,6 +137,17 @@ const AUTOSAVE_INTERVAL_MS = 5000;
 const HP_MP_RECOVERY_PCT = 0.20; 
 const INITIAL_RESPEC_COST = 5000; 
 
+// Novo: Array com nomes de monstros e chefes para áreas específicas
+const MONSTERS_DATA = [
+    {area: 1, monster: "Slime", boss: "Slime King"},
+    {area: 2, monster: "Common Bat", boss: "Vamprick"},
+    {area: 3, monster: "Sewer Rat", boss: "Plague Master"},
+    {area: 4, monster: "Blood Mosquito", boss: "Dengue Queen"},
+    {area: 5, monster: "Mutant Grasshopper", boss: "Prime Swarm"},
+    // Adicione mais áreas aqui conforme o desenvolvimento
+];
+const DEFAULT_MONSTERS = ["Slime", "Goblin", "Wolf", "Bandit", "Skeleton", "Gargoyle", "Cultist", "Warden", "Hollow", "Shade"];
+
 const SHOP_BASE = {
   hpPot: {name:"HP Potion", basePrice:100, action:"hpPotion"}, 
   mpPot: {name:"MP Potion", basePrice:100, action:"mpPotion"}, 
@@ -220,9 +231,23 @@ function generateEnemy(isBoss=false){
   const hit = Math.max(20, Math.floor(baseHit - defReduction));
 
   const interval = Math.max(0.6, 2.5 - (a*0.002) - (lvl*0.01));
+
+  // Novo: Escolhe o nome do monstro/chefe
+  let monsterName;
+  let bossName;
+  const customData = MONSTERS_DATA.find(data => data.area === a);
+  if (customData) {
+      monsterName = customData.monster;
+      bossName = customData.boss;
+  } else {
+      // Usa os nomes padrão se a área não estiver na lista personalizada
+      monsterName = DEFAULT_MONSTERS[Math.floor(a/30)%DEFAULT_MONSTERS.length];
+      bossName = `${monsterName} King`; // Nome de chefe genérico para áreas não personalizadas
+  }
+
   if (isBoss) {
     return {
-      name:`Area ${a} Boss`,
+      name: bossName,
       hp: Math.floor(baseHp * 5.5),
       maxHp: Math.floor(baseHp * 5.5),
       atk: Math.max(5, Math.floor(baseAtk * 1.6)),
@@ -232,7 +257,7 @@ function generateEnemy(isBoss=false){
     };
   } else {
     return {
-      name:`${["Slime","Goblin","Wolf","Bandit","Skeleton","Gargoyle","Cultist","Warden","Hollow","Shade"][Math.floor(a/30)%10]} Lv${Math.max(1, Math.floor(a/3))}`,
+      name:`${monsterName} Lv${Math.max(1, Math.floor(a/3))}`,
       hp: Math.floor(baseHp),
       maxHp: Math.floor(baseHp),
       atk: Math.max(1, Math.floor(baseAtk)),
