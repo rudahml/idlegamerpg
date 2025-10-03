@@ -8,12 +8,12 @@ Players control a hero, level up attributes, defeat monsters, face bosses, and p
 ## 🎮 How to Play
 
 1. Open the game in your web browser.
-2. Enter your **hero's name**. //Future Update
+2. Enter your **hero's name**. (//Done in update 0.1a)
 3. Click **Start Game**.
 4. The hero will automatically attack enemies at set intervals.
 5. Allocate attribute points gained on level-up.
 6. Fight bosses every 10 monsters and advance to the next area.
-7. HP will be **fully restored upon leveling up**. //Future Update
+7. HP will be **fully restored upon leveling up**. (//Done in update 0.1a)
 
 ---
 
@@ -39,7 +39,7 @@ Players control a hero, level up attributes, defeat monsters, face bosses, and p
 
 ---
 
-## 💾 Saving (//FUTURE UPDATE)
+## 💾 Saving (//Done in update 0.1a)
 
 The game automatically saves progress using the browser's **localStorage**:
 
@@ -57,7 +57,7 @@ You can continue exactly where you left off by reopening the game in the same br
 - HTML5
 - CSS3
 - JavaScript (ES6)
-- localStorage for automatic saving (//FUTURE UPDATE)
+- localStorage for automatic saving (//Done in update 0.1a)
 
 ---
 
