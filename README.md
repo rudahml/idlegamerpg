@@ -8,12 +8,12 @@ Players control a hero, level up attributes, defeat monsters, face bosses, and p
 ## 🎮 How to Play
 
 1. Open the game in your web browser.
-2. Enter your **hero's name**.
+2. Enter your **hero's name**. //Future Update
 3. Click **Start Game**.
 4. The hero will automatically attack enemies at set intervals.
 5. Allocate attribute points gained on level-up.
 6. Fight bosses every 10 monsters and advance to the next area.
-7. HP will be **fully restored upon leveling up**.
+7. HP will be **fully restored upon leveling up**. //Future Update
 
 ---
 
@@ -65,7 +65,7 @@ You can continue exactly where you left off by reopening the game in the same br
 
 1. Clone this repository:
    ```bash
-   git clone https://github.com/YOUR_USERNAME/idle-souls-rpg.git
+   git clone [https://github.com/YOUR_USERNAME/idle-souls-rpg.git](https://rudahml.github.io/idlegamerpg/)
 Open index.html in any modern web browser.
 
 Enjoy the game!
