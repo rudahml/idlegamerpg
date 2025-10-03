@@ -40,7 +40,7 @@
         <h1>Idle SoulsLike - Hero</h1>
         <small class="muted"> (Idle RPG)</small>
       </div>
-      <div style="text-align:right">
+      <div id="nameControls" style="text-align:right">
         <input id="nameInput" class="name-input" placeholder="Wanderer" />
         <button class="tiny" onclick="setNameFromInput()">Set Name</button>
         <button class="tiny" onclick="resetSave()">Reset Save</button>
@@ -517,9 +517,21 @@ function log(text){
 }
 function escapeHtml(s){ return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;'); }
 
+function toggleNameInput(show) {
+  const nameControls = document.getElementById('nameControls');
+  nameControls.style.display = show ? 'block' : 'none';
+}
+
 function updateUI(){
   document.getElementById('hero-name').innerText = hero.name;
-  document.getElementById('nameInput').placeholder = hero.name;
+  
+  // Esconde o input e botão se o nome for diferente do padrão "Wanderer"
+  const isDefaultName = hero.name === "Wanderer";
+  if (isDefaultName) {
+      document.getElementById('nameInput').placeholder = hero.name;
+  }
+  toggleNameInput(isDefaultName);
+
 
   document.getElementById('level').innerText = hero.level;
   document.getElementById('unspent').innerText = hero.unspent;
@@ -649,7 +661,7 @@ function loadGame(){
         hero.respecCost = INITIAL_RESPEC_COST;
     }
     
-    document.getElementById('nameInput').value = hero.name === "Wanderer" ? "" : hero.name;
+    // O input não precisa ser preenchido, apenas a UI no final se encarrega de esconder.
 
     area = data.area || 1;
     areaKills = data.areaKills || 0;
@@ -678,7 +690,10 @@ function resetSave(){
       respecCost: INITIAL_RESPEC_COST
     };
     area = 1; areaKills = 0; isBossFight = false;
-    document.getElementById('nameInput').value = ""; 
+    // Garante que o input reaparece ao resetar
+    document.getElementById('nameInput').value = "";
+    toggleNameInput(true); 
+
     recalcDerived();
     spawnEnemy(false);
     updateUI();
@@ -701,7 +716,7 @@ function init() {
   }
   startCombat();
   setInterval(saveGame, AUTOSAVE_INTERVAL_MS); 
-  // Alteração: Usa hero.name para a mensagem final
+  // Usa hero.name para a mensagem final
   log(`Game started. Good luck, ${hero.name}.`); 
 }
 init();
@@ -712,14 +727,16 @@ init();
 function setNameFromInput(){
   const el = document.getElementById('nameInput');
   let val = (el.value || '').trim();
+  
   if (!val) {
-    val = "Wanderer";
+    log("Please choose a name.");
+    return; 
   }
   
   if (hero.name !== val){
       hero.name = val;
       recalcDerived();
-      updateUI();
+      updateUI(); // Isso chamará toggleNameInput(false)
       saveGame(); 
       log(`Name set to ${hero.name}`);
   }
