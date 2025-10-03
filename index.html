@@ -53,7 +53,7 @@
       <p>XP: <span id="xp">0</span> / <span id="xpNeeded">50</span></p>
       <div class="bar" title="XP bar"><i id="xpbar" style="width:0%"></i></div>
 
-      <p>HP: <strong id="hp">100</strong> / <strong id="maxHp">100</strong></p>
+      <p>HP: <strong id="hp">100</strong> / <strong id="maxHp">100</strong> <small>(+<span id="hpRegen">0</span>/s)</small></p>
       <div class="bar" title="HP"><i id="hpbar" style="width:100%"></i></div>
 
       <p>MP: <strong id="mp">30</strong> / <strong id="maxMp">30</strong></p>
@@ -136,6 +136,14 @@ const BASE_GOLD = 5;
 const AUTOSAVE_INTERVAL_MS = 5000;
 const HP_MP_RECOVERY_PCT = 0.20; 
 const INITIAL_RESPEC_COST = 5000; 
+// NOVO: Expoente de XP ajustado para Level 200/Area 300
+const XP_SCALING_EXPONENT = 1.65; 
+// NOVO: Multiplicador de XP base para compensar o aumento de custo
+const MONSTER_XP_MULTIPLIER = 1.8; 
+// NOVO: Multiplicador de dano crítico
+const CRIT_MULTIPLIER = 1.8;
+const HP_REGEN_INTERVAL_MS = 1000;
+
 
 // Array com nomes de monstros e chefes para áreas específicas
 const MONSTERS_DATA = [
@@ -153,7 +161,9 @@ const SHOP_BASE = {
   mpPot: {name:"MP Potion", basePrice:100, action:"mpPotion"}, 
   weapon: {name:"Weapon Upgrade (+atk)", basePrice:1000, action:"weaponUp"}, 
   armor: {name:"Armor Upgrade (+def)", basePrice:1000, action:"armorUp"}, 
-  spell: {name:"Learn Fireball", basePrice:10000, action:"learnSpell"} 
+  spell: {name:"Learn Fireball", basePrice:10000, action:"learnSpell"},
+  // NOVO: Magia de cura
+  healSpell: {name:"Learn Heal", basePrice:100000, action:"learnHeal"}
 };
 
 /* =========================
@@ -174,8 +184,9 @@ let hero = {
   defBonus:0,
   potions:{hp:2, mp:1},
   spells:[], 
-  purchases: { hpPot:0, mpPot:0, weapon:0, armor:0, spell:0 },
-  respecCost: INITIAL_RESPEC_COST 
+  purchases: { hpPot:0, mpPot:0, weapon:0, armor:0, spell:0, healSpell:0 },
+  respecCost: INITIAL_RESPEC_COST,
+  hpRegenRate: 0, // NOVO: Taxa de regeneração
 };
 
 function recalcDerived() {
@@ -195,6 +206,9 @@ function recalcDerived() {
   
   if (!hero.hp || hero.hp > hero.maxHp) hero.hp = hero.maxHp;
   if (!hero.mp || hero.mp > hero.maxMp) hero.mp = hero.maxMp;
+
+  // NOVO: Recalcula a taxa de regeneração de HP
+  hero.hpRegenRate = 0.01 * Math.floor(hero.attr.vit / 5);
 }
 
 /* =========================
@@ -227,7 +241,7 @@ function generateEnemy(isBoss=false){
     difficultyFactor = 1 + (150-1) * 0.018 + (lvl-150) * 0.07 + (a-1)*0.01;
   }
   
-  // **NOVO AUMENTO DE HP E ATK COM BASE NO NÍVEL DO MONSTRO NA ÁREA**
+  // NOVO AUMENTO DE HP E ATK COM BASE NO NÍVEL DO MONSTRO NA ÁREA
   const hpScaling = monsterLevel * 2.5; 
   const atkScaling = monsterLevel * 0.5;
 
@@ -283,7 +297,8 @@ function generateEnemy(isBoss=false){
     XP and Leveling
     ========================= */
 function xpNeededFor(level){
-  return Math.floor(BASE_XP_REQ * Math.pow(level, 1.12));
+  // NOVO: Alterado 1.12 para XP_SCALING_EXPONENT (1.65)
+  return Math.floor(BASE_XP_REQ * Math.pow(level, XP_SCALING_EXPONENT));
 }
 
 function gainXP(amount){
@@ -345,10 +360,13 @@ function stopCombat(){
 
 function heroAutoAttack(){
   if (hero.hp <= 0 || !enemy) return;
+  // NOVO: Cálculo de acerto crítico com base na Destreza
+  const critChance = Math.min(0.25, hero.attr.dex * 0.0025);
+  const crit = Math.random() < critChance;
+  
   if (Math.random()*100 <= hero.hitChance){
-    const crit = Math.random() < Math.min(0.25, hero.attr.dex * 0.0025);
     const baseDmg = hero.atk + Math.floor(hero.attr.str * 1.5);
-    const dmg = Math.max(1, Math.floor(baseDmg * (crit?1.8:1)));
+    const dmg = Math.max(1, Math.floor(baseDmg * (crit ? CRIT_MULTIPLIER : 1)));
     enemy.hp -= dmg;
     log(`You hit ${enemy.name} for ${dmg}${crit ? ' (CRIT!)' : ''}.`);
     if (enemy.hp <= 0){
@@ -369,7 +387,17 @@ function onEnemyDefeated(){
   const gold = Math.max(0, Math.floor(enemy.goldReward));
   hero.gold += gold;
   log(`Defeated ${enemy.name}. Gained ${gold} gold.`);
-  const xpGain = Math.max(5, Math.floor((enemy.maxHp/10) * (isBossFight ? 2.5 : 1)));
+  
+  // XP Gain: Aplica MONSTER_XP_MULTIPLIER (1.8) nos monstros normais
+  let xpGain;
+  if (isBossFight) {
+      // Chefe ganha 2.5x o HP do monstro base
+      xpGain = Math.max(5, Math.floor((enemy.maxHp/10) * 2.5));
+  } else {
+      // Monstro normal ganha 1.8x o HP do monstro base
+      xpGain = Math.max(5, Math.floor((enemy.maxHp/10) * MONSTER_XP_MULTIPLIER));
+  }
+
   gainXP(xpGain);
 
   if (isBossFight){
@@ -430,16 +458,20 @@ function shopPrice(key){
   } else if (key === 'hpPot' || key === 'mpPot') {
     // Aumento de preço para poções
     return Math.floor(base * Math.pow(1.10, count));
-  } else if (key === 'spell') {
-      return base; // Preço fixo para Fireball
+  } else if (key === 'spell' || key === 'healSpell') {
+      return base; // Preço fixo para magias
   }
   return base;
 }
 
 function buyItem(key){
-  // Lógica especial para Fireball: só pode comprar uma vez
-  if (key === 'spell' && hero.spells.length > 0) {
+  // Lógica para esconder magias após a compra
+  if (key === 'spell' && hero.spells.find(s => s.name === 'Fireball')) {
       log("You already know Fireball.");
+      return;
+  }
+  if (key === 'healSpell' && hero.spells.find(s => s.name === 'Heal')) {
+      log("You already know Heal.");
       return;
   }
 
@@ -464,8 +496,11 @@ function buyItem(key){
     hero.defBonus += 2 + Math.floor(hero.purchases.armor * 1.1);
     log("Armor upgraded. Defense increased.");
   } else if (key === 'spell'){
-    hero.spells.push({id:Date.now(), name:"Fireball", mpCost:8, power: Math.floor(30 + area * 1.5 + hero.level * 0.8)});
+    hero.spells.push({id:Date.now(), name:"Fireball", mpCost:8, power: Math.floor(30 + area * 1.5 + hero.level * 0.8), type:"attack"});
     log("You learned Fireball.");
+  } else if (key === 'healSpell'){ // NOVO: Compra da magia de cura
+    hero.spells.push({id:Date.now(), name:"Heal", mpCost:20, power: Math.floor(hero.maxHp * 0.25 + hero.attr.int * 2), type:"heal"});
+    log("You learned Heal.");
   }
   recalcDerived();
   updateUI();
@@ -498,12 +533,20 @@ function castSpell(spellIndex){
   const spell = hero.spells[spellIndex];
   if (!spell){ log("No such spell."); return; }
   if (hero.mp < spell.mpCost){ log("Not enough MP."); return; }
-  if (!enemy || enemy.hp <= 0) { log("No target."); return; }
   hero.mp -= spell.mpCost;
-  const power = Math.floor(spell.power + hero.attr.int * 2 + hero.level * 0.6);
-  enemy.hp -= power;
-  log(`Cast ${spell.name} for ${power} damage.`);
-  if (enemy.hp <= 0) onEnemyDefeated();
+  
+  if (spell.type === "attack") {
+    if (!enemy || enemy.hp <= 0) { log("No target."); return; }
+    const power = Math.floor(spell.power + hero.attr.int * 2 + hero.level * 0.6);
+    enemy.hp -= power;
+    log(`Cast ${spell.name} for ${power} damage.`);
+    if (enemy.hp <= 0) onEnemyDefeated();
+  } else if (spell.type === "heal") {
+    const healAmount = Math.floor(hero.maxHp * 0.25 + hero.attr.int * 2);
+    hero.hp = Math.min(hero.maxHp, hero.hp + healAmount);
+    log(`Cast ${spell.name}. Restored ${healAmount} HP.`);
+  }
+
   updateUI();
 }
 
@@ -543,6 +586,73 @@ function resetAllocation(){
 }
 
 /* =========================
+    ON ENEMY / BOSS DEFEAT
+    ========================= */
+function onEnemyDefeated(){
+  stopCombat();
+  const gold = Math.max(0, Math.floor(enemy.goldReward));
+  hero.gold += gold;
+  log(`Defeated ${enemy.name}. Gained ${gold} gold.`);
+  
+  // XP Gain: Aplica MONSTER_XP_MULTIPLIER (1.8) nos monstros normais
+  let xpGain;
+  if (isBossFight) {
+      // Chefe ganha 2.5x o HP do monstro base
+      xpGain = Math.max(5, Math.floor((enemy.maxHp/10) * 2.5));
+  } else {
+      // Monstro normal ganha 1.8x o HP do monstro base
+      xpGain = Math.max(5, Math.floor((enemy.maxHp/10) * MONSTER_XP_MULTIPLIER));
+  }
+
+  gainXP(xpGain);
+
+  if (isBossFight){
+    log(`Boss defeated! You advance from Area ${area} to Area ${Math.min(AREAS_TOTAL, area+1)}.`);
+    area = Math.min(AREAS_TOTAL, area+1);
+    areaKills = 0; // Reseta para o monstro 1 (areaKills=0)
+    isBossFight = false;
+    spawnEnemy();
+    updateUI();
+    startCombat();
+  } else {
+    areaKills++; // Passa para o próximo nível de monstro (ex: de 0 para 1, ou seja, Lv1 para Lv2)
+    if (areaKills >= MONSTERS_PER_AREA){
+      isBossFight = true;
+      spawnEnemy(true);
+      updateUI();
+      startCombat();
+    } else {
+      spawnEnemy(false);
+      startCombat();
+    }
+  }
+}
+
+/* =========================
+    HERO DEATH: restart area
+    ========================= */
+function onHeroDeath(){
+  stopCombat();
+  areaKills = 0; // Recomeça do monstro 1
+  isBossFight = false;
+  recalcDerived();
+  hero.hp = hero.maxHp;
+  hero.mp = hero.maxMp;
+  spawnEnemy();
+  updateUI();
+  startCombat();
+}
+
+/* =========================
+    SPAWN ENEMY
+    ========================= */
+function spawnEnemy(boss=false){
+  enemy = generateEnemy(boss);
+  isBossFight = !!boss;
+  updateUI();
+}
+
+/* =========================
     UI UPDATE & LOG
     ========================= */
 const logDiv = document.getElementById('log');
@@ -579,6 +689,7 @@ function updateUI(){
   document.getElementById('hp').innerText = Math.floor(hero.hp);
   document.getElementById('maxHp').innerText = Math.floor(hero.maxHp);
   document.getElementById('hpbar').style.width = Math.floor((hero.hp/hero.maxHp)*100) + '%';
+  document.getElementById('hpRegen').innerText = hero.hpRegenRate.toFixed(2); // NOVO: Mostra a regeneração
 
   document.getElementById('mp').innerText = Math.floor(hero.mp);
   document.getElementById('maxMp').innerText = Math.floor(hero.maxMp);
@@ -623,11 +734,11 @@ function renderShop(){
   shopDiv.innerHTML = '';
   
   for (const key of Object.keys(SHOP_BASE)){
-    // Lógica para esconder Fireball após a compra
-    if (key === 'spell' && hero.spells.length > 0) {
-        continue;
-    }
-    
+    // Lógica para esconder magias após a compra
+    const spellName = SHOP_BASE[key].name;
+    if (hero.spells.find(s => s.name === "Fireball") && key === "spell") continue;
+    if (hero.spells.find(s => s.name === "Heal") && key === "healSpell") continue;
+
     const info = SHOP_BASE[key];
     const price = shopPrice(key);
     const el = document.createElement('div');
@@ -722,7 +833,7 @@ function resetSave(){
       level:1,xp:0,gold:0,unspent:0,
       attr:{ str:1, agi:1, vit:1, int:1, dex:1 },
       baseAtk:10,baseDef:5,baseHp:100,baseMp:30,atkBonus:0,defBonus:0,
-      potions:{hp:2, mp:1},spells:[],purchases:{ hpPot:0, mpPot:0, weapon:0, armor:0, spell:0 },
+      potions:{hp:2, mp:1},spells:[],purchases:{ hpPot:0, mpPot:0, weapon:0, armor:0, spell:0, healSpell:0 },
       respecCost: INITIAL_RESPEC_COST
     };
     area = 1; areaKills = 0; isBossFight = false;
@@ -754,6 +865,17 @@ function init() {
   setInterval(saveGame, AUTOSAVE_INTERVAL_MS); 
   // Usa hero.name para a mensagem final
   log(`Game started. Good luck, ${hero.name}.`); 
+  
+  // NOVO: Adiciona a regeneração passiva
+  setInterval(() => {
+    if (hero.hp < hero.maxHp) {
+      hero.hp += hero.hpRegenRate;
+      if (hero.hp > hero.maxHp) {
+        hero.hp = hero.maxHp;
+      }
+      updateUI();
+    }
+  }, HP_REGEN_INTERVAL_MS);
 }
 init();
 
