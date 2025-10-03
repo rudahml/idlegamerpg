@@ -65,7 +65,7 @@ You can continue exactly where you left off by reopening the game in the same br
 
 1. Clone this repository:
    ```bash
-   git clone [https://github.com/YOUR_USERNAME/idle-souls-rpg.git](https://rudahml.github.io/idlegamerpg/)
+   git clone https://rudahml.github.io/idlegamerpg/
 Open index.html in any modern web browser.
 
 Enjoy the game!
