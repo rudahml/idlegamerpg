@@ -26,7 +26,7 @@ Players control a hero, level up attributes, defeat monsters, face bosses, and p
   - Allocate points to attributes on level-up.
 
 - **Enemies**:
-  - Each area has regular monsters and a boss every 10 enemies. (Future UPDATE: New Monsters Name)
+  - Each area has regular monsters and a boss every 10 enemies. (In Update 0.3a add monsters and boss up to Area 6)
   - Bosses provide higher XP and gold rewards.
 
 - **Progression**:
